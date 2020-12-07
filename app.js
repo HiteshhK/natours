@@ -7,7 +7,7 @@ const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
 const hpp = require('hpp');
-
+const viewRouter = require('./routes/viewRoutes');
 const app = express();
 app.set('view engine','pug');
 
@@ -77,12 +77,8 @@ app.use((req,res,next)=>{
 })
 //3)Routes
 //mounting a router
-app.get('/',(req,res)=>{
-    res.status(200).render('base',{
-        tour:'The Forest Hiker',
-        user:'hitesh'
-    });
-})
+
+app.use('/',viewRouter);
 app.use('/api/v1/tours',toursRouter);
 app.use('/api/v1/users',userRouter);
 app.use('/api/v1/reviews',reviewRouter);
