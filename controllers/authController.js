@@ -37,22 +37,7 @@ const createSendToken = (user,statusCode,res)=>{
 }
 exports.signup = catchAsync(async(req,res,next)=>{
     const newUser = await User.create(req.body);
-    // const newUser = await User.create({
-    //     name:req.body.name,
-    //     email:req.body.email,
-    //     password:req.body.password,
-    //     passwordConfirm:req.body.passwordConfirm
-    // });
     createSendToken(newUser,201,res);
-        // const token = signToken(newUser._id);
-        
-        // res.status(201).json({
-        //     status:'success',
-        //     token, 
-        //     data:{
-        //         user:newUser
-        //     }
-        // });
 });
 
 exports.login = catchAsync (async(req,res,next)=>{
@@ -72,12 +57,16 @@ exports.login = catchAsync (async(req,res,next)=>{
     //3 if everything is ok, send token to client
     createSendToken(user,200,res);
     
-    // const token = signToken(user._id);
-    // res.status(200).json({
-    //     status:'success',
-    //     token
-    // });
 });
+
+exports.logout = (req, res) => {
+    console.log({'inside-logout':'req'});
+    res.cookie('jwt', 'loggedout', {
+      expires: new Date(Date.now() + 10 * 1000),
+      httpOnly: true
+    });
+    res.status(200).json({ status: 'success' });
+};
 
 //to protect unauthorized login
 exports.protect = catchAsync(async(req,res,next)=>{
@@ -88,6 +77,9 @@ exports.protect = catchAsync(async(req,res,next)=>{
         req.headers.authorization.startsWith('Bearer')
     ){
         token = req.headers.authorization.split(' ')[1];
+    }
+    else if(req.cookies.jwt){
+        token = req.cookies.jwt;
     }
     // console.log({token });
     if(!token){
@@ -109,8 +101,42 @@ exports.protect = catchAsync(async(req,res,next)=>{
 
     //grant access to protected Route
     req.user = freshUser;
+    res.locals.user = freshUser;
+
     next();
-})
+});
+
+// Only for rendered pages, no errors!
+exports.isLoggedIn = async (req, res, next) => {
+    if (req.cookies.jwt) {
+      try {
+        // 1) verify token
+        const decoded = await promisify(jwt.verify)(
+          req.cookies.jwt,
+          process.env.JWT_SECRET
+        );
+  
+        // 2) Check if user still exists
+        const currentUser = await User.findById(decoded.id);
+        if (!currentUser) {
+          return next();
+        }
+  
+        // 3) Check if user changed password after the token was issued
+        if (currentUser.changedPasswordAfter(decoded.iat)) {
+          return next();
+        }
+  
+        // THERE IS A LOGGED IN USER
+        res.locals.user = currentUser;
+        return next();
+      } catch (err) {
+        return next();
+      }
+    }
+    next();
+  };
+  
 
 exports.restrictedTo = (...roles)=>{
     return (req,res,next)=>{
@@ -194,7 +220,7 @@ exports.updatePassword= catchAsync(async(req,res,next) => {
     // }
     //2) check if posted current pass is correct
     if(!await user.correctPassword(req.body.passwordCurrent,user.password)){
-        return next(new AppError('Your current password is wron',401))
+        return next(new AppError('Your current password is wrong',401))
     }
     //3 if so, update password
     user.password = req.body.password;
