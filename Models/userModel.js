@@ -19,7 +19,10 @@ const userSchema = new mongoose.Schema({
         validate:[validator.isEmail,'A user mail id should containes @, . fields'],
         lowercase:true
     },
-    photo:String,
+    photo:{
+        type:String,
+        default:'default.jpg'
+    },
     role:{
         type:String,
         emum:['user','guide','lead-guide','admin'],

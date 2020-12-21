@@ -7,7 +7,10 @@ const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
 const hpp = require('hpp');
+const cookieParser = require('cookie-parser');
+
 const viewRouter = require('./routes/viewRoutes');
+const cors = require('cors');
 const app = express();
 app.set('view engine','pug');
 
@@ -26,7 +29,19 @@ const globalErrorHandler = require('./controllers/errorController');
 const reviewRouter = require('./routes/reviewRoutes');
 //1)Global middlewares
 //Set  Security HTTP Header
-app.use(helmet())
+// app.use(helmet())
+app.use(
+    helmet.contentSecurityPolicy({
+      directives: {
+        defaultSrc: ["'self'", 'https:', 'http:', 'data:', 'ws:'],
+        baseUri: ["'self'"],
+        fontSrc: ["'self'", 'https:', 'http:', 'data:'],
+        scriptSrc: ["'self'", 'https:', 'http:', 'blob:'],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https:', 'http:'],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+      },
+    })
+  );
 
 //Development logging
 if(process.env.NODE_ENV === 'development'){
@@ -45,11 +60,23 @@ const limiter = rateLimit({
 //adding rate limiter in our app middleware for all routes with /api
 app.use('/api',limiter);
 
-
+//access origin
+// app.use(function (req, res, next) {
+//     res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+//     res.setHeader('Access-Control-Allow-Credentials', true);
+//     res.setHeader('Access-Control-Allow-Methods','POST, GET, OPTIONS, DELETE, PUT');
+//     res.setHeader('Access-Control-Allow-Headers','append,delete,entries,foreach,get,has,keys,set,values,Authorization');
+//     next();
+// });
+app.use(cors({origin:true,credentials: true}));
 
 //will add the data from body to req object
 //or, Body Parser, reading data from body into req.body
 app.use(express.json({limit:'10kb'}));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+//cookie parser
+app.use(cookieParser());
 
 //Data sanitization against NoSql query injection
 //this will look at the request body, query strings and request params and it will filter out all $ signs and symbols
@@ -87,7 +114,7 @@ app.use('/api/v1/reviews',reviewRouter);
  * should be at the end, after checking above routed
  * other routes than defined above
  */
-app.all('*',(req,res,next)=>{
+app.all('**',(req,res,next)=>{
  
     // const err = new Error(`Can't find ${req.originalUrl} on this server`);
     // err.status = 'fail';
@@ -95,6 +122,8 @@ app.all('*',(req,res,next)=>{
     
     next(new AppError(new Error(`Can't find ${req.originalUrl} on this server`,404)));//what ever we pass in next, it is assumed as error, which will directly go to error handling middleware
 });
+
+
 
 //error handling middleware
 //if we pass 4 argument in app.use express consider it as erro handling middleware
